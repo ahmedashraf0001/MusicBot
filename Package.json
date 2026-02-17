@@ -4,7 +4,7 @@
   "description": "Discord music bot powered by YouTube API",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js",
+    "start": "node patch.js && node bot.js",
     "dev": "nodemon bot.js"
   },
   "dependencies": {

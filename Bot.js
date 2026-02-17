@@ -8,7 +8,7 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX        = process.env.PREFIX        || '!';
 const BOT_STATUS    = process.env.BOT_STATUS    || '🎵 Music | !play';
 const VOLUME        = parseInt(process.env.VOLUME) || 100;
-const YTDLP_PATH    = process.env.YTDLP_PATH    || './yt-dlp.exe';
+const YTDLP_PATH = process.env.YTDLP_PATH || 'yt-dlp';
 const EMBED_COLOR   = parseInt(process.env.EMBED_COLOR, 16) || 0xFF0000;
 
 if (!DISCORD_TOKEN) {
