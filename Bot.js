@@ -23,9 +23,7 @@ const ytDlpPath = isWindows
   : 'yt-dlp';
 
 const distube = new DisTube(client, {
-  plugins: [new YtDlpPlugin({
-    update: !isWindows,
-  })],
+  plugins: [new YtDlpPlugin({ update: !isWindows })],
   emitNewSongOnly: true,
   joinNewVoiceChannel: true,
   savePreviousSongs: true,
@@ -163,7 +161,10 @@ client.on('messageCreate', async (message) => {
     } catch (err) {
       console.error('❌ Play error:', err.message);
       console.error(err);
-      message.reply(`❌ Error: ${err.message}`);
+      // Extract first line only — full error can exceed Discord's 2000 char limit
+      const firstLine = err.message.split('\n').find(l => l.trim().startsWith('ERROR:')) || err.message.split('\n')[0];
+      const short = firstLine.length > 1800 ? firstLine.slice(0, 1800) + '…' : firstLine;
+      message.reply(`❌ ${short}`);
     }
   }
 

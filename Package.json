@@ -4,7 +4,6 @@
   "description": "Discord music bot powered by YouTube API",
   "main": "bot.js",
   "scripts": {
-    "postinstall": "node patch.js",
     "start": "node bot.js",
     "dev": "nodemon bot.js"
   },
@@ -15,7 +14,6 @@
     "distube": "^5.2.3",
     "dotenv": "^16.4.5",
     "ffmpeg-static": "^5.2.0",
-    "googleapis": "^144.0.0",
     "libsodium-wrappers": "^0.7.13",
     "opusscript": "^0.1.1",
     "youtube-sr": "^4.3.12"
@@ -24,6 +22,6 @@
     "nodemon": "^3.1.7"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   }
 }
