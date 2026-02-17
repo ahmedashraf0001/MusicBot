@@ -3,19 +3,6 @@ const { DisTube } = require('distube');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
 require('dotenv').config();
 
-// ─── Environment Variables ────────────────────────────────────────────────────
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const PREFIX        = process.env.PREFIX        || '!';
-const BOT_STATUS    = process.env.BOT_STATUS    || '🎵 Music | !play';
-const VOLUME        = parseInt(process.env.VOLUME) || 100;
-const YTDLP_PATH = process.env.YTDLP_PATH || 'yt-dlp';
-const EMBED_COLOR   = parseInt(process.env.EMBED_COLOR, 16) || 0xFF0000;
-
-if (!DISCORD_TOKEN) {
-  console.error('❌ Missing DISCORD_TOKEN in environment variables!');
-  process.exit(1);
-}
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -29,10 +16,15 @@ const client = new Client({
 const path = require('path');
 const { execFile } = require('child_process');
 
+// Use system-installed yt-dlp on Linux (Railway), or local .exe on Windows
+const isWindows = process.platform === 'win32';
+const ytDlpPath = isWindows
+  ? path.join(__dirname, 'yt-dlp.exe')
+  : 'yt-dlp';
+
 const distube = new DisTube(client, {
   plugins: [new YtDlpPlugin({
-    update: false,
-    binaryPath: path.resolve(YTDLP_PATH),
+    update: !isWindows,
   })],
   emitNewSongOnly: true,
   joinNewVoiceChannel: true,
@@ -49,15 +41,11 @@ client.setMaxListeners(20);
 // ─── Bot Ready ────────────────────────────────────────────────────────────────
 client.once('clientReady', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-  console.log(`📋 Prefix: ${PREFIX}`);
-  console.log(`🔊 Default Volume: ${VOLUME}`);
-  console.log(`🤖 yt-dlp path: ${path.resolve(YTDLP_PATH)}`);
-  client.user.setActivity(BOT_STATUS, { type: 0 });
+  client.user.setActivity('🎵 Music | !play', { type: 0 });
 });
 
 // ─── DisTube Events ───────────────────────────────────────────────────────────
 distube.on('initQueue', queue => {
-  queue.setVolume(VOLUME);
   console.log('✅ Queue initialized for guild:', queue.id);
 });
 
@@ -75,7 +63,7 @@ distube.on('playSong', (queue, song) => {
   console.log('▶️  Now playing:', song.name, '| URL:', song.url);
 
   const embed = new EmbedBuilder()
-    .setColor(EMBED_COLOR)
+    .setColor(0xFF0000)
     .setTitle('🎵 Now Playing')
     .setDescription(`**[${song.name}](${song.url})**`)
     .addFields(
@@ -123,19 +111,20 @@ client.on('messageCreate', async (message) => {
 
   if (message.author.bot || !message.guild) return;
 
-  if (!message.content.startsWith(PREFIX)) return;
+  const prefix = process.env.PREFIX || '!';
+  if (!message.content.startsWith(prefix)) return;
 
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
   // ── !play ──
   if (command === 'play' || command === 'p') {
-    if (!args.length) return message.reply(`❌ Please provide a song name or YouTube URL.\n\`${PREFIX}play <song name or URL>\``);
+    if (!args.length) return message.reply('❌ Please provide a song name or YouTube URL.\n`!play <song name or URL>`');
 
     // Allow !play 1-5 to pick from last search results
     if (args.length === 1 && /^[1-5]$/.test(args[0])) {
       const cached = searchCache.get(message.author.id);
-      if (!cached) return message.reply(`❌ No recent search found. Use \`${PREFIX}search <query>\` first.`);
+      if (!cached) return message.reply('❌ No recent search found. Use `!search <query>` first.');
       args[0] = cached[parseInt(args[0]) - 1];
     }
 
@@ -180,14 +169,12 @@ client.on('messageCreate', async (message) => {
 
   // ── !search ──
   else if (command === 'search' || command === 's') {
-    if (!args.length) return message.reply(`❌ Provide a search query. \`${PREFIX}search <query>\``);
+    if (!args.length) return message.reply('❌ Provide a search query. `!search <query>`');
     const query = args.join(' ');
     const msg = await message.reply('🔍 Searching...');
 
     try {
-      const ytdlpPath = path.resolve(YTDLP_PATH);
-
-      execFile(ytdlpPath, [
+      execFile(ytDlpPath, [
         `ytsearch5:${query}`,
         '--dump-json',
         '--flat-playlist',
@@ -211,7 +198,7 @@ client.on('messageCreate', async (message) => {
         searchCache.set(message.author.id, results.map(r => `https://www.youtube.com/watch?v=${r.id}`));
 
         const embed = new EmbedBuilder()
-          .setColor(EMBED_COLOR)
+          .setColor(0xFF0000)
           .setTitle(`🔍 Search Results for: ${query}`)
           .setDescription(
             results.map((r, i) => {
@@ -221,7 +208,7 @@ client.on('messageCreate', async (message) => {
               return `**${i + 1}.** [${r.title}](https://www.youtube.com/watch?v=${r.id})\n└ ${r.channel || 'Unknown'} • ${duration}`;
             }).join('\n\n')
           )
-          .setFooter({ text: `Type ${PREFIX}play 1-5 to play a result` });
+          .setFooter({ text: 'Type !play 1-5 to play a result' });
 
         msg.edit({ content: '', embeds: [embed] });
       });
@@ -346,7 +333,7 @@ client.on('messageCreate', async (message) => {
 
     const song = queue.songs[0];
     const embed = new EmbedBuilder()
-      .setColor(EMBED_COLOR)
+      .setColor(0xFF0000)
       .setTitle('🎵 Now Playing')
       .setDescription(`**[${song.name}](${song.url})**`)
       .addFields(
@@ -363,20 +350,20 @@ client.on('messageCreate', async (message) => {
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setTitle('🎵 Music Bot Commands')
-      .setDescription(`Prefix: \`${PREFIX}\``)
+      .setDescription('Prefix: `!`')
       .addFields(
-        { name: `\`${PREFIX}play <song/URL>\``, value: 'Play a song or add to queue', inline: true },
-        { name: `\`${PREFIX}play <1-5>\``, value: 'Play a result from !search', inline: true },
-        { name: `\`${PREFIX}search <query>\``, value: 'Search YouTube for songs', inline: true },
-        { name: `\`${PREFIX}skip\``, value: 'Skip the current song', inline: true },
-        { name: `\`${PREFIX}previous\``, value: 'Play the previous song', inline: true },
-        { name: `\`${PREFIX}pause\``, value: 'Pause/resume playback', inline: true },
-        { name: `\`${PREFIX}stop\``, value: 'Stop and clear queue', inline: true },
-        { name: `\`${PREFIX}queue\``, value: 'Show the current queue', inline: true },
-        { name: `\`${PREFIX}nowplaying\``, value: 'Show current song', inline: true },
-        { name: `\`${PREFIX}loop\``, value: 'Cycle loop modes (off/song/queue)', inline: true },
-        { name: `\`${PREFIX}shuffle\``, value: 'Shuffle the queue', inline: true },
-        { name: `\`${PREFIX}volume <0-100>\``, value: 'Set volume', inline: true },
+        { name: '`!play <song/URL>`', value: 'Play a song or add to queue', inline: true },
+        { name: '`!play <1-5>`', value: 'Play a result from !search', inline: true },
+        { name: '`!search <query>`', value: 'Search YouTube for songs', inline: true },
+        { name: '`!skip`', value: 'Skip the current song', inline: true },
+        { name: '`!previous`', value: 'Play the previous song', inline: true },
+        { name: '`!pause`', value: 'Pause/resume playback', inline: true },
+        { name: '`!stop`', value: 'Stop and clear queue', inline: true },
+        { name: '`!queue`', value: 'Show the current queue', inline: true },
+        { name: '`!nowplaying`', value: 'Show current song', inline: true },
+        { name: '`!loop`', value: 'Cycle loop modes (off/song/queue)', inline: true },
+        { name: '`!shuffle`', value: 'Shuffle the queue', inline: true },
+        { name: '`!volume <0-100>`', value: 'Set volume', inline: true },
       );
 
     message.reply({ embeds: [embed] });
@@ -439,4 +426,4 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-client.login(DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN);

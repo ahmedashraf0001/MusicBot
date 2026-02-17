@@ -1,2 +1,11 @@
 [phases.setup]
-aptPkgs = ["ffmpeg", "yt-dlp"]
+aptPkgs = ["ffmpeg", "python3", "python3-pip"]
+
+[phases.install]
+cmds = [
+  "npm ci",
+  "pip install yt-dlp",
+]
+
+[start]
+cmd = "node bot.js"
