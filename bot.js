@@ -175,11 +175,13 @@ client.on('messageCreate', async (message) => {
     const msg = await message.reply('🔍 Searching...');
 
     try {
+      const extraArgs = isWindows ? [] : ['--extractor-args', 'youtube:player_client=android,mweb,web'];
       execFile(ytDlpPath, [
         `ytsearch5:${query}`,
         '--dump-json',
         '--flat-playlist',
         '--no-warnings',
+        ...extraArgs,
       ], (error, stdout) => {
         if (error) {
           console.error(error);
@@ -191,6 +193,8 @@ client.on('messageCreate', async (message) => {
           .filter(line => line.trim().startsWith('{'))
           .map(line => { try { return JSON.parse(line); } catch { return null; } })
           .filter(Boolean)
+          // Filter out channels/playlists — only keep actual video entries
+          .filter(r => r.id && !r.id.startsWith('UC') && !r.id.startsWith('PL') && (r.ie_key === 'Youtube' || r._type === 'url' || r.duration))
           .slice(0, 5);
 
         if (!results.length) return msg.edit('❌ No results found.');
