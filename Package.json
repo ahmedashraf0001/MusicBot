@@ -1,0 +1,28 @@
+{
+  "name": "discord-music-bot",
+  "version": "1.0.0",
+  "description": "Discord music bot powered by YouTube API",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "@distube/yt-dlp": "^2.0.1",
+    "discord.js": "^14.16.3",
+    "distube": "^5.2.3",
+    "dotenv": "^16.4.5",
+    "ffmpeg-static": "^5.2.0",
+    "googleapis": "^144.0.0",
+    "opusscript": "^0.1.1",
+    "sodium-native": "^4.1.1",
+    "youtube-sr": "^4.3.12"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
