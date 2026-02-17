@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } = require('discord.js');
 const { DisTube } = require('distube');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
 require('dotenv').config();
@@ -36,10 +36,38 @@ const searchCache = new Map();
 distube.setMaxListeners(20);
 client.setMaxListeners(20);
 
+// ─── Slash Commands Definition ────────────────────────────────────────────────
+const slashCommands = [
+  new SlashCommandBuilder().setName('play').setDescription('Play a song or add to queue')
+    .addStringOption(o => o.setName('query').setDescription('Song name or YouTube URL').setRequired(true)),
+  new SlashCommandBuilder().setName('search').setDescription('Search YouTube for songs')
+    .addStringOption(o => o.setName('query').setDescription('Search query').setRequired(true)),
+  new SlashCommandBuilder().setName('skip').setDescription('Skip the current song'),
+  new SlashCommandBuilder().setName('previous').setDescription('Play the previous song'),
+  new SlashCommandBuilder().setName('pause').setDescription('Pause or resume playback'),
+  new SlashCommandBuilder().setName('stop').setDescription('Stop and clear the queue'),
+  new SlashCommandBuilder().setName('queue').setDescription('Show the current queue'),
+  new SlashCommandBuilder().setName('nowplaying').setDescription('Show the current song'),
+  new SlashCommandBuilder().setName('loop').setDescription('Cycle loop modes (off/song/queue)'),
+  new SlashCommandBuilder().setName('shuffle').setDescription('Shuffle the queue'),
+  new SlashCommandBuilder().setName('volume').setDescription('Set the volume')
+    .addIntegerOption(o => o.setName('level').setDescription('Volume level (0-100)').setRequired(true).setMinValue(0).setMaxValue(100)),
+  new SlashCommandBuilder().setName('help').setDescription('Show all commands'),
+].map(cmd => cmd.toJSON());
+
 // ─── Bot Ready ────────────────────────────────────────────────────────────────
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-  client.user.setActivity('🎵 Music | !play', { type: 0 });
+  client.user.setActivity('🎵 Music | /play', { type: 0 });
+
+  // Register slash commands globally
+  try {
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
+    console.log(`✅ Registered ${slashCommands.length} slash commands`);
+  } catch (err) {
+    console.error('❌ Failed to register slash commands:', err.message);
+  }
 });
 
 // ─── DisTube Events ───────────────────────────────────────────────────────────
@@ -375,9 +403,143 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// ─── Button Interactions ──────────────────────────────────────────────────────
+// ─── Button & Slash Command Interactions ─────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
+  // ── Slash Commands ──
+  if (interaction.isChatInputCommand()) {
+    const { commandName } = interaction;
+    await interaction.deferReply();
+
+    const voiceChannel = interaction.member?.voice.channel;
+    const guildId = interaction.guild.id;
+
+    if (commandName === 'play') {
+      if (!voiceChannel) return interaction.editReply('❌ You need to be in a voice channel!');
+      const query = interaction.options.getString('query');
+      try {
+        await distube.play(voiceChannel, query, { member: interaction.member, textChannel: interaction.channel });
+        interaction.editReply(`🔍 Loading **${query}**...`);
+      } catch (err) {
+        const firstLine = err.message.split('\n').find(l => l.trim().startsWith('ERROR:')) || err.message.split('\n')[0];
+        interaction.editReply(`❌ ${firstLine.slice(0, 1800)}`);
+      }
+
+    } else if (commandName === 'search') {
+      const query = interaction.options.getString('query');
+      const extraArgs = isWindows ? [] : ['--extractor-args', 'youtube:player_client=android,mweb,web'];
+      execFile(ytDlpPath, [`ytsearch5:${query}`, '--dump-json', '--flat-playlist', '--no-warnings', ...extraArgs], (error, stdout) => {
+        if (error) return interaction.editReply('❌ Search failed. Please try again.');
+        const results = stdout.split('\n')
+          .filter(l => l.trim().startsWith('{'))
+          .map(l => { try { return JSON.parse(l); } catch { return null; } })
+          .filter(Boolean)
+          .filter(r => r.id && !r.id.startsWith('UC') && !r.id.startsWith('PL') && (r.ie_key === 'Youtube' || r._type === 'url' || r.duration))
+          .slice(0, 5);
+        if (!results.length) return interaction.editReply('❌ No results found.');
+        searchCache.set(interaction.user.id, results.map(r => `https://www.youtube.com/watch?v=${r.id}`));
+        const embed = new EmbedBuilder()
+          .setColor(0xFF0000)
+          .setTitle(`🔍 Search Results for: ${query}`)
+          .setDescription(results.map((r, i) => {
+            const duration = r.duration ? new Date(r.duration * 1000).toISOString().substr(11, 8).replace(/^00:/, '') : 'Unknown';
+            return `**${i + 1}.** [${r.title}](https://www.youtube.com/watch?v=${r.id})\n└ ${r.channel || 'Unknown'} • ${duration}`;
+          }).join('\n\n'))
+          .setFooter({ text: 'Use !play 1-5 or /play <URL> to play a result' });
+        interaction.editReply({ content: '', embeds: [embed] });
+      });
+
+    } else if (commandName === 'skip') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      try { await distube.skip(guildId); interaction.editReply('⏭ Skipped!'); }
+      catch { interaction.editReply('❌ No more songs in queue.'); }
+
+    } else if (commandName === 'previous') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      try { await distube.previous(guildId); interaction.editReply('⏮ Playing previous song!'); }
+      catch { interaction.editReply('❌ No previous song available.'); }
+
+    } else if (commandName === 'pause') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      if (queue.paused) { distube.resume(guildId); interaction.editReply('▶️ Resumed!'); }
+      else { distube.pause(guildId); interaction.editReply('⏸ Paused!'); }
+
+    } else if (commandName === 'stop') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Not playing anything!');
+      await distube.stop(guildId); interaction.editReply('⏹ Stopped and cleared the queue!');
+
+    } else if (commandName === 'queue') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('📋 The queue is empty!');
+      const embed = new EmbedBuilder().setColor(0x5865F2).setTitle('📋 Music Queue');
+      const current = queue.songs[0];
+      if (current) embed.addFields({ name: '🎵 Now Playing', value: `[${current.name}](${current.url}) • ${current.formattedDuration}` });
+      const upcoming = queue.songs.slice(1);
+      if (upcoming.length > 0) {
+        embed.addFields({ name: `Up Next (${upcoming.length} tracks)`, value: upcoming.slice(0, 10).map((t, i) => `**${i + 1}.** [${t.name}](${t.url}) • ${t.formattedDuration}`).join('\n') });
+        if (upcoming.length > 10) embed.setFooter({ text: `...and ${upcoming.length - 10} more` });
+      }
+      embed.addFields(
+        { name: '🔁 Loop', value: queue.repeatMode === 1 ? 'Song' : queue.repeatMode === 2 ? 'Queue' : 'Off', inline: true },
+        { name: '🔊 Volume', value: `${queue.volume}%`, inline: true },
+      );
+      interaction.editReply({ embeds: [embed] });
+
+    } else if (commandName === 'nowplaying') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      const song = queue.songs[0];
+      const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('🎵 Now Playing')
+        .setDescription(`**[${song.name}](${song.url})**`)
+        .addFields({ name: 'Duration', value: song.formattedDuration, inline: true }, { name: 'Requested by', value: song.user?.tag || 'Unknown', inline: true })
+        .setThumbnail(song.thumbnail);
+      interaction.editReply({ embeds: [embed] });
+
+    } else if (commandName === 'loop') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      const mode = (queue.repeatMode + 1) % 3;
+      distube.setRepeatMode(guildId, mode);
+      interaction.editReply(`🔁 Loop mode: **${mode === 0 ? 'OFF' : mode === 1 ? 'Song 🔂' : 'Queue 🔁'}**`);
+
+    } else if (commandName === 'shuffle') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      await distube.shuffle(guildId); interaction.editReply('🔀 Queue shuffled!');
+
+    } else if (commandName === 'volume') {
+      const queue = distube.getQueue(guildId);
+      if (!queue) return interaction.editReply('❌ Nothing is playing!');
+      const vol = interaction.options.getInteger('level');
+      distube.setVolume(guildId, vol); interaction.editReply(`🔊 Volume set to **${vol}%**`);
+
+    } else if (commandName === 'help') {
+      const embed = new EmbedBuilder().setColor(0x5865F2).setTitle('🎵 Music Bot Commands')
+        .setDescription('Works with both `/slash` commands and `!prefix` commands')
+        .addFields(
+          { name: '`/play <song/URL>`', value: 'Play a song or add to queue', inline: true },
+          { name: '`/search <query>`', value: 'Search YouTube for songs', inline: true },
+          { name: '`/skip`', value: 'Skip the current song', inline: true },
+          { name: '`/previous`', value: 'Play the previous song', inline: true },
+          { name: '`/pause`', value: 'Pause/resume playback', inline: true },
+          { name: '`/stop`', value: 'Stop and clear queue', inline: true },
+          { name: '`/queue`', value: 'Show the current queue', inline: true },
+          { name: '`/nowplaying`', value: 'Show current song', inline: true },
+          { name: '`/loop`', value: 'Cycle loop modes', inline: true },
+          { name: '`/shuffle`', value: 'Shuffle the queue', inline: true },
+          { name: '`/volume <0-100>`', value: 'Set volume', inline: true },
+        );
+      interaction.editReply({ embeds: [embed] });
+    }
+    return;
+  }
+
+  // ── Buttons ──
   if (!interaction.isButton()) return;
+  await interaction.deferUpdate();
   await interaction.deferUpdate();
 
   const guildId = interaction.guild.id;
