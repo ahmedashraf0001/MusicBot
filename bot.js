@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes, MessageFlags } = require('discord.js');
 const { DisTube } = require('distube');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
 require('dotenv').config();
@@ -407,7 +407,7 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
   // ── Slash Commands ──
   if (interaction.isChatInputCommand()) {
-    if (!interaction.guild) return interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+    if (!interaction.guild) return interaction.reply({ content: '❌ This command can only be used in a server.', flags: MessageFlags.Ephemeral });
     const { commandName } = interaction;
     await interaction.deferReply();
 
@@ -547,40 +547,40 @@ client.on('interactionCreate', async (interaction) => {
   const queue = distube.getQueue(guildId);
 
   if (interaction.customId === 'previous') {
-    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', ephemeral: true });
+    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', flags: MessageFlags.Ephemeral });
     try {
       await distube.previous(guildId);
-      interaction.followUp({ content: '⏮ Playing previous song!', ephemeral: true });
+      interaction.followUp({ content: '⏮ Playing previous song!', flags: MessageFlags.Ephemeral });
     } catch {
-      interaction.followUp({ content: '❌ No previous song available.', ephemeral: true });
+      interaction.followUp({ content: '❌ No previous song available.', flags: MessageFlags.Ephemeral });
     }
 
   } else if (interaction.customId === 'togglepause') {
-    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', ephemeral: true });
+    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', flags: MessageFlags.Ephemeral });
     if (queue.paused) {
       distube.resume(guildId);
-      interaction.followUp({ content: '▶️ Resumed!', ephemeral: true });
+      interaction.followUp({ content: '▶️ Resumed!', flags: MessageFlags.Ephemeral });
     } else {
       distube.pause(guildId);
-      interaction.followUp({ content: '⏸ Paused!', ephemeral: true });
+      interaction.followUp({ content: '⏸ Paused!', flags: MessageFlags.Ephemeral });
     }
 
   } else if (interaction.customId === 'stop') {
-    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', ephemeral: true });
+    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', flags: MessageFlags.Ephemeral });
     await distube.stop(guildId);
-    interaction.followUp({ content: '⏹ Stopped and cleared the queue!', ephemeral: true });
+    interaction.followUp({ content: '⏹ Stopped and cleared the queue!', flags: MessageFlags.Ephemeral });
 
   } else if (interaction.customId === 'skip') {
-    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', ephemeral: true });
+    if (!queue) return interaction.followUp({ content: '❌ Nothing is playing!', flags: MessageFlags.Ephemeral });
     try {
       await distube.skip(guildId);
-      interaction.followUp({ content: '⏭ Skipped!', ephemeral: true });
+      interaction.followUp({ content: '⏭ Skipped!', flags: MessageFlags.Ephemeral });
     } catch {
-      interaction.followUp({ content: '❌ No more songs in queue.', ephemeral: true });
+      interaction.followUp({ content: '❌ No more songs in queue.', flags: MessageFlags.Ephemeral });
     }
 
   } else if (interaction.customId === 'queue') {
-    if (!queue) return interaction.followUp({ content: '📋 Queue is empty.', ephemeral: true });
+    if (!queue) return interaction.followUp({ content: '📋 Queue is empty.', flags: MessageFlags.Ephemeral });
     const list = queue.songs.slice(1, 11);
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
@@ -590,7 +590,7 @@ client.on('interactionCreate', async (interaction) => {
           ? list.map((t, i) => `**${i + 1}.** ${t.name} • ${t.formattedDuration}`).join('\n')
           : 'No upcoming songs.'
       );
-    interaction.followUp({ embeds: [embed], ephemeral: true });
+    interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 });
 
