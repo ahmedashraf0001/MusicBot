@@ -407,6 +407,7 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
   // ── Slash Commands ──
   if (interaction.isChatInputCommand()) {
+    if (!interaction.guild) return interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
     const { commandName } = interaction;
     await interaction.deferReply();
 
@@ -539,7 +540,7 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── Buttons ──
   if (!interaction.isButton()) return;
-  await interaction.deferUpdate();
+  if (!interaction.guild) return;
   await interaction.deferUpdate();
 
   const guildId = interaction.guild.id;
