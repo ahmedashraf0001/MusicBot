@@ -416,7 +416,13 @@ client.on('interactionCreate', async (interaction) => {
 
     if (commandName === 'play') {
       if (!voiceChannel) return interaction.editReply('❌ You need to be in a voice channel!');
-      const query = interaction.options.getString('query');
+      let query = interaction.options.getString('query');
+      // Allow /play 1-5 to pick from last search results
+      if (/^[1-5]$/.test(query)) {
+        const cached = searchCache.get(interaction.user.id);
+        if (!cached) return interaction.editReply('❌ No recent search found. Use `/search` first.');
+        query = cached[parseInt(query) - 1];
+      }
       try {
         await distube.play(voiceChannel, query, { member: interaction.member, textChannel: interaction.channel });
         interaction.editReply(`🔍 Loading **${query}**...`);
