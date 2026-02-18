@@ -411,7 +411,7 @@ client.on('interactionCreate', async (interaction) => {
     const { commandName } = interaction;
     await interaction.deferReply();
 
-    const voiceChannel = interaction.member?.voice.channel;
+    const voiceChannel = interaction.member?.voice?.channel;
     const guildId = interaction.guildId;
 
     if (commandName === 'play') {
