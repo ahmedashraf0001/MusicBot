@@ -407,12 +407,12 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
   // ── Slash Commands ──
   if (interaction.isChatInputCommand()) {
-    if (!interaction.guild) return interaction.reply({ content: '❌ This command can only be used in a server.', flags: MessageFlags.Ephemeral });
+    if (!interaction.guildId) return interaction.reply({ content: '❌ This command can only be used in a server.', flags: MessageFlags.Ephemeral });
     const { commandName } = interaction;
     await interaction.deferReply();
 
     const voiceChannel = interaction.member?.voice.channel;
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId;
 
     if (commandName === 'play') {
       if (!voiceChannel) return interaction.editReply('❌ You need to be in a voice channel!');
@@ -540,10 +540,10 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── Buttons ──
   if (!interaction.isButton()) return;
-  if (!interaction.guild) return;
+  if (!interaction.guildId) return;
   await interaction.deferUpdate();
 
-  const guildId = interaction.guild.id;
+  const guildId = interaction.guildId;
   const queue = distube.getQueue(guildId);
 
   if (interaction.customId === 'previous') {
